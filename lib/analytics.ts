@@ -180,10 +180,11 @@ export async function getStats(): Promise<AnalyticsStats | null> {
       // topSongs stays empty — not critical
     }
 
-    // Parse recent
+    // Parse recent — Upstash REST auto-parses JSON, so items may already be objects
     const recent: RecentEntry[] = recentRaw.map((s) => {
+      if (typeof s === "object" && s !== null) return s as unknown as RecentEntry;
       try { return JSON.parse(s) as RecentEntry; }
-      catch { return { videoId: "", title: s, ts: 0 }; }
+      catch { return { videoId: "", title: String(s), ts: 0 }; }
     });
 
     return {
