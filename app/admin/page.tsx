@@ -102,32 +102,48 @@ export default async function AdminPage({ searchParams }: Props) {
           </div>
         ) : (
           <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <SummaryCard
-                label="今日"
-                value={stats.today}
-                sub={`前日比 ${growth(stats.today, stats.yesterday)}`}
-                subColor={growthColor(stats.today, stats.yesterday)}
-              />
-              <SummaryCard
-                label="今週"
-                value={stats.thisWeek}
-                sub={`前週比 ${growth(stats.thisWeek, stats.lastWeek)}`}
-                subColor={growthColor(stats.thisWeek, stats.lastWeek)}
-              />
-              <SummaryCard
-                label="今月"
-                value={stats.thisMonth}
-                sub={`前月比 ${growth(stats.thisMonth, stats.lastMonth)}`}
-                subColor={growthColor(stats.thisMonth, stats.lastMonth)}
-              />
-              <SummaryCard
-                label="累計"
-                value={stats.total}
-                sub="全期間"
-                subColor="text-zinc-500"
-              />
+            {/* Summary cards — searches */}
+            <div>
+              <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 ml-1">検索回数</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SummaryCard
+                  label="今日"
+                  value={stats.today}
+                  sub={`前日比 ${growth(stats.today, stats.yesterday)}`}
+                  subColor={growthColor(stats.today, stats.yesterday)}
+                />
+                <SummaryCard
+                  label="今週"
+                  value={stats.thisWeek}
+                  sub={`前週比 ${growth(stats.thisWeek, stats.lastWeek)}`}
+                  subColor={growthColor(stats.thisWeek, stats.lastWeek)}
+                />
+                <SummaryCard
+                  label="今月"
+                  value={stats.thisMonth}
+                  sub={`前月比 ${growth(stats.thisMonth, stats.lastMonth)}`}
+                  subColor={growthColor(stats.thisMonth, stats.lastMonth)}
+                />
+                <SummaryCard
+                  label="累計"
+                  value={stats.total}
+                  sub="全期間"
+                  subColor="text-zinc-500"
+                />
+              </div>
+            </div>
+
+            {/* Summary cards — unique users */}
+            <div>
+              <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 ml-1">
+                ユニークユーザー <span className="normal-case">（検索した人・概算）</span>
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SummaryCard label="今日" value={stats.uniqToday} sub="—" subColor="text-zinc-500" />
+                <SummaryCard label="今週" value={stats.uniqThisWeek} sub="—" subColor="text-zinc-500" />
+                <SummaryCard label="今月" value={stats.uniqThisMonth} sub="—" subColor="text-zinc-500" />
+                <SummaryCard label="累計" value={stats.uniqTotal} sub="全期間" subColor="text-zinc-500" />
+              </div>
             </div>
 
             {/* Top songs + Recent — side by side on wide screens */}

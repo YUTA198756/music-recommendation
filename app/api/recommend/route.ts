@@ -24,10 +24,16 @@ export async function POST(request: Request) {
 
     const data = await res.json().catch(() => ({ detail: "Backend returned invalid response" }));
     if (res.ok) {
-      // fire-and-forget — pass seed track info for richer analytics
+      // fire-and-forget — pass seed track info + uid cookie for unique user count
+      const uid = request.headers.get("cookie")
+        ?.split(";")
+        .find((c) => c.trim().startsWith("uid="))
+        ?.split("=")[1]
+        ?.trim();
       trackSearch({
         videoId: data.seed?.video_id,
         title: data.seed?.title,
+        uid,
       });
     }
     return NextResponse.json(data, { status: res.status });

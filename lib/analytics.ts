@@ -25,6 +25,7 @@ function nowJST(): Date {
 export async function trackSearch(opts?: {
   videoId?: string;
   title?: string;
+  uid?: string;
 }): Promise<void> {
   const redis = getClient();
   if (!redis) return;
@@ -46,6 +47,19 @@ export async function trackSearch(opts?: {
       redis.expire(`recs:week:${week}`, 60 * 60 * 24 * 700),
       redis.expire(`recs:month:${month}`, 60 * 60 * 24 * 1800),
     ];
+
+    // Unique user tracking via HyperLogLog
+    if (opts?.uid) {
+      cmds.push(
+        redis.pfadd(`recs:uniq:day:${day}`, opts.uid),
+        redis.pfadd(`recs:uniq:week:${week}`, opts.uid),
+        redis.pfadd(`recs:uniq:month:${month}`, opts.uid),
+        redis.pfadd("recs:uniq:total", opts.uid),
+        redis.expire(`recs:uniq:day:${day}`, 60 * 60 * 24 * 400),
+        redis.expire(`recs:uniq:week:${week}`, 60 * 60 * 24 * 700),
+        redis.expire(`recs:uniq:month:${month}`, 60 * 60 * 24 * 1800),
+      );
+    }
 
     if (opts?.videoId) {
       // Song ranking via sorted set
@@ -85,10 +99,14 @@ export type AnalyticsStats = {
   lastWeek: number;
   thisMonth: number;
   lastMonth: number;
+  uniqToday: number;
+  uniqThisWeek: number;
+  uniqThisMonth: number;
+  uniqTotal: number;
   last30Days: DayStat[];
   last12Weeks: DayStat[];
   last12Months: DayStat[];
-  hourly: DayStat[];        // index 0-23
+  hourly: DayStat[];
   topSongs: SongStat[];
   recent: RecentEntry[];
 };
@@ -124,7 +142,13 @@ export async function getStats(): Promise<AnalyticsStats | null> {
   );
 
   try {
-    const [dayVals, weekVals, monthVals, hourVals, total, topSongRaw, recentRaw] =
+    const now2 = nowJST();
+    const todayKey = now2.toISOString().slice(0, 10);
+    const thisWeekKey = isoWeek(now2);
+    const thisMonthKey = now2.toISOString().slice(0, 7);
+
+    const [dayVals, weekVals, monthVals, hourVals, total, topSongRaw, recentRaw,
+      uniqToday, uniqThisWeek, uniqThisMonth, uniqTotal] =
       await Promise.all([
         redis.mget<(number | null)[]>(...dayKeys.map((k) => `recs:day:${k}`)),
         redis.mget<(number | null)[]>(...weekKeys.map((k) => `recs:week:${k}`)),
@@ -133,6 +157,10 @@ export async function getStats(): Promise<AnalyticsStats | null> {
         redis.get<number>("recs:total"),
         redis.zrange("recs:songs:ranking", 0, 9, { rev: true, withScores: true }),
         redis.lrange("recs:recent", 0, 19),
+        redis.pfcount(`recs:uniq:day:${todayKey}`),
+        redis.pfcount(`recs:uniq:week:${thisWeekKey}`),
+        redis.pfcount(`recs:uniq:month:${thisMonthKey}`),
+        redis.pfcount("recs:uniq:total"),
       ]);
 
     // Top songs — zrange withScores returns [member, score, member, score, ...]
@@ -179,6 +207,10 @@ export async function getStats(): Promise<AnalyticsStats | null> {
       lastWeek: weekVals[1] ?? 0,
       thisMonth: last12Months[0].count,
       lastMonth: monthVals[1] ?? 0,
+      uniqToday: uniqToday ?? 0,
+      uniqThisWeek: uniqThisWeek ?? 0,
+      uniqThisMonth: uniqThisMonth ?? 0,
+      uniqTotal: uniqTotal ?? 0,
       last30Days,
       last12Weeks,
       last12Months,
