@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
 type Track = {
   video_id: string;
@@ -21,6 +22,53 @@ type RecommendResponse = {
 
 type SortMode = "similarity" | "popularity";
 
+type HistoryEntry = {
+  videoId: string;
+  title: string;
+  artist: string;
+  thumbnail: string | null;
+  timestamp: number;
+};
+
+const HISTORY_KEY = "music-rec-history";
+const MAX_HISTORY = 20;
+
+function loadHistory(): HistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToHistory(seed: Track) {
+  try {
+    const existing = loadHistory().filter((h) => h.videoId !== seed.video_id);
+    const entry: HistoryEntry = {
+      videoId: seed.video_id,
+      title: seed.title,
+      artist: seed.artists[0] ?? "",
+      thumbnail: seed.thumbnail,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify([entry, ...existing].slice(0, MAX_HISTORY))
+    );
+  } catch {}
+}
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "今";
+  if (min < 60) return `${min}分前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前`;
+  return `${Math.floor(hr / 24)}日前`;
+}
+
 function formatViews(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -30,7 +78,8 @@ function formatViews(n: number): string {
 
 const staggerClass = (i: number) => `stagger-${Math.min(i + 1, 10)}`;
 
-export default function Home() {
+function HomeInner() {
+  const searchParams = useSearchParams();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +87,8 @@ export default function Home() {
   const [sortMode, setSortMode] = useState<SortMode>("similarity");
   const [history, setHistory] = useState<string[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [recentHistory, setRecentHistory] = useState<HistoryEntry[]>([]);
+  const [copied, setCopied] = useState(false);
 
   const sortedRecs = useMemo(() => {
     if (!data) return [];
@@ -50,7 +101,7 @@ export default function Home() {
     return recs;
   }, [data, sortMode]);
 
-  async function fetchRecommendations(inputUrl: string) {
+  const fetchRecommendations = useCallback(async (inputUrl: string) => {
     setLoading(true);
     setError(null);
     setPlayingId(null);
@@ -72,7 +123,26 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  // Auto-fetch from ?seed= query param on mount
+  useEffect(() => {
+    const seed = searchParams.get("seed");
+    if (seed) {
+      setUrl(seed);
+      fetchRecommendations(seed);
+    }
+    setRecentHistory(loadHistory());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Save to localStorage when results arrive
+  useEffect(() => {
+    if (data?.seed) {
+      saveToHistory(data.seed);
+      setRecentHistory(loadHistory());
+    }
+  }, [data]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +173,23 @@ export default function Home() {
     setPlayingId((id) => (id === videoId ? null : videoId));
   }
 
+  async function handleShare() {
+    if (!data) return;
+    const shareUrl = `${window.location.origin}/share/${data.seed.video_id}`;
+    const shareText = `「${data.seed.title}」に似た曲を10曲発見！🎵`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: shareText, url: shareUrl });
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }
+
   const pageBg = {
     background: `
       radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.10) 0%, transparent 60%),
@@ -115,10 +202,15 @@ export default function Home() {
   return (
     <div className="min-h-screen text-white" style={pageBg}>
       {/* header */}
-      <header className="sticky top-0 z-20 border-b border-white/5 backdrop-blur-xl" style={{ backgroundColor: 'rgba(6,6,15,0.7)' }}>
+      <header
+        className="sticky top-0 z-20 border-b border-white/5 backdrop-blur-xl"
+        style={{ backgroundColor: "rgba(6,6,15,0.7)" }}
+      >
         <div className="mx-auto max-w-3xl px-4 py-4 flex items-center gap-3">
           <span className="text-2xl">🎵</span>
-          <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">Music Recommendation</span>
+          <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+            Music Recommendation
+          </span>
         </div>
       </header>
 
@@ -126,7 +218,9 @@ export default function Home() {
         {/* hero */}
         <div className="mb-10 text-center animate-fade-up">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-3">
-            <span className="bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-transparent">Discover Music</span>
+            <span className="bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-transparent">
+              Discover Music
+            </span>
           </h1>
           <p className="text-zinc-400 text-sm sm:text-base">
             YouTubeリンクを入力すると、似てる曲を10曲見つけます
@@ -134,7 +228,11 @@ export default function Home() {
         </div>
 
         {/* search form */}
-        <form onSubmit={handleSubmit} className="mb-8 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+        <form
+          onSubmit={handleSubmit}
+          className="mb-8 animate-fade-up"
+          style={{ animationDelay: "0.1s" }}
+        >
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <input
@@ -178,6 +276,51 @@ export default function Home() {
           </div>
         )}
 
+        {/* recent history (shown on home screen) */}
+        {!loading && !data && recentHistory.length > 0 && (
+          <div className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-3 ml-1">
+              最近の検索
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {recentHistory.map((entry) => (
+                <button
+                  key={`${entry.videoId}-${entry.timestamp}`}
+                  type="button"
+                  onClick={() => {
+                    setUrl(entry.videoId);
+                    setData(null);
+                    fetchRecommendations(entry.videoId);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:border-violet-500/40 hover:bg-white/[0.07] transition-all duration-200 text-left"
+                >
+                  {entry.thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={entry.thumbnail}
+                      alt=""
+                      className="w-12 h-12 rounded-lg object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-white/5 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate text-white">
+                      {entry.title}
+                    </p>
+                    <p className="text-xs text-zinc-500 truncate mt-0.5">
+                      {entry.artist}
+                    </p>
+                  </div>
+                  <span className="text-xs text-zinc-600 shrink-0">
+                    {timeAgo(entry.timestamp)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* results */}
         {!loading && data && (
           <>
@@ -198,7 +341,9 @@ export default function Home() {
 
             {/* seed card */}
             <div className="mb-6 animate-fade-up">
-              <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 ml-1">Now Playing</p>
+              <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 ml-1">
+                Now Playing
+              </p>
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(139,92,246,0.15)]">
                 <div className="p-4">
                   <TrackRow
@@ -208,22 +353,48 @@ export default function Home() {
                     large
                   />
                 </div>
-                {playingId === data.seed.video_id && <YouTubeEmbed videoId={data.seed.video_id} />}
+                {playingId === data.seed.video_id && (
+                  <YouTubeEmbed videoId={data.seed.video_id} />
+                )}
               </div>
             </div>
 
-            {/* sort toggle + count */}
+            {/* sort toggle + count + share */}
             <div className="flex items-center justify-between mb-4 animate-fade-in">
               <p className="text-sm text-zinc-400">
-                <span className="text-white font-semibold">{sortedRecs.length}</span> 曲のおすすめ
+                <span className="text-white font-semibold">
+                  {sortedRecs.length}
+                </span>{" "}
+                曲のおすすめ
               </p>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-1 flex gap-1">
-                <SortButton active={sortMode === "similarity"} onClick={() => setSortMode("similarity")}>
-                  類似度順
-                </SortButton>
-                <SortButton active={sortMode === "popularity"} onClick={() => setSortMode("popularity")}>
-                  人気度順
-                </SortButton>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/10 border border-violet-500/20 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition-all duration-200"
+                >
+                  {copied ? (
+                    <>✓ コピーしました</>
+                  ) : (
+                    <>
+                      <span>↗</span> シェア
+                    </>
+                  )}
+                </button>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-1 flex gap-1">
+                  <SortButton
+                    active={sortMode === "similarity"}
+                    onClick={() => setSortMode("similarity")}
+                  >
+                    類似度順
+                  </SortButton>
+                  <SortButton
+                    active={sortMode === "popularity"}
+                    onClick={() => setSortMode("popularity")}
+                  >
+                    人気度順
+                  </SortButton>
+                </div>
               </div>
             </div>
 
@@ -254,7 +425,9 @@ export default function Home() {
                       🔍
                     </button>
                   </div>
-                  {playingId === t.video_id && <YouTubeEmbed videoId={t.video_id} />}
+                  {playingId === t.video_id && (
+                    <YouTubeEmbed videoId={t.video_id} />
+                  )}
                 </li>
               ))}
             </ul>
@@ -262,6 +435,14 @@ export default function Home() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeInner />
+    </Suspense>
   );
 }
 
@@ -281,7 +462,10 @@ function LoadingDots() {
 
 function YouTubeEmbed({ videoId }: { videoId: string }) {
   return (
-    <div className="relative w-full border-t border-white/5" style={{ paddingBottom: "56.25%" }}>
+    <div
+      className="relative w-full border-t border-white/5"
+      style={{ paddingBottom: "56.25%" }}
+    >
       <iframe
         className="absolute inset-0 w-full h-full"
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
@@ -320,7 +504,11 @@ function TrackRow({
       >
         {track.thumbnail && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={track.thumbnail} alt="" className="w-full h-full object-cover" />
+          <img
+            src={track.thumbnail}
+            alt=""
+            className="w-full h-full object-cover"
+          />
         )}
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-200">
           <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
@@ -353,10 +541,18 @@ function TrackRow({
         {showMeta && (
           <div className="flex gap-3 mt-1 text-xs text-zinc-600">
             {track.length && <span>{track.length}</span>}
-            <span className={sortMode === "popularity" ? "text-violet-400 font-semibold" : ""}>
+            <span
+              className={
+                sortMode === "popularity" ? "text-violet-400 font-semibold" : ""
+              }
+            >
               {formatViews(track.view_count)} views
             </span>
-            <span className={sortMode === "similarity" ? "text-violet-400 font-semibold" : ""}>
+            <span
+              className={
+                sortMode === "similarity" ? "text-violet-400 font-semibold" : ""
+              }
+            >
               #{track.similarity_rank}
             </span>
           </div>

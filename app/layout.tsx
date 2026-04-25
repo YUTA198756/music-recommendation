@@ -14,7 +14,17 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Music Recommendation",
-  description: "YouTube音楽の類似曲レコメンデーション",
+  description: "YouTubeリンクを入れるだけで似た曲を10曲発見。類似度・人気度でソート、掘り下げ探索も。",
+  openGraph: {
+    title: "Music Recommendation",
+    description: "YouTubeリンクを入れるだけで似た曲を10曲発見。",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Music Recommendation",
+    description: "YouTubeリンクを入れるだけで似た曲を10曲発見。",
+  },
 };
 
 export default function RootLayout({
