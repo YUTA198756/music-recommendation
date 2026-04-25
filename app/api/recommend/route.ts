@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { trackSearch } from "@/lib/analytics";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://127.0.0.1:8000";
 
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     });
 
     const data = await res.json().catch(() => ({ detail: "Backend returned invalid response" }));
+    if (res.ok) trackSearch(); // fire-and-forget, never awaited
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
