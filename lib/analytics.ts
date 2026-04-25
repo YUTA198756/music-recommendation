@@ -132,14 +132,13 @@ export async function getStats(): Promise<AnalyticsStats | null> {
   );
 
   try {
-    // Single pipeline for all read commands
+    // Pipeline for counters (day/week/month/hour/total/recent/uniq)
     const pipe = redis.pipeline();
     dayKeys.forEach((k) => pipe.get(`recs:day:${k}`));
     weekKeys.forEach((k) => pipe.get(`recs:week:${k}`));
     monthKeys.forEach((k) => pipe.get(`recs:month:${k}`));
     hourKeys.forEach((k) => pipe.get(`recs:hour:${k}`));
     pipe.get("recs:total");
-    pipe.zrange("recs:songs:ranking", 0, 9, { rev: true, withScores: true });
     pipe.lrange("recs:recent", 0, 19);
     pipe.pfcount(`recs:uniq:day:${todayKey}`);
     pipe.pfcount(`recs:uniq:week:${thisWeekKey}`);
@@ -155,45 +154,31 @@ export async function getStats(): Promise<AnalyticsStats | null> {
     const monthVals = monthKeys.map(() => (results[idx++] as number | null) ?? 0);
     const hourVals = hourKeys.map(() => (results[idx++] as number | null) ?? 0);
     const total = (results[idx++] as number | null) ?? 0;
-    const topSongRaw = (results[idx++] as unknown[]) ?? [];
     const recentRaw = (results[idx++] as string[]) ?? [];
     const uniqToday = (results[idx++] as number | null) ?? 0;
     const uniqThisWeek = (results[idx++] as number | null) ?? 0;
     const uniqThisMonth = (results[idx++] as number | null) ?? 0;
     const uniqTotal = (results[idx++] as number | null) ?? 0;
 
-    // Parse top songs
-    const topSongIds: string[] = [];
-    const topSongScores: Record<string, number> = {};
-    for (let i = 0; i < topSongRaw.length; i += 2) {
-      const id = topSongRaw[i] as string;
-      const score = Number(topSongRaw[i + 1]);
-      topSongIds.push(id);
-      topSongScores[id] = score;
-    }
-
-    // Fetch titles separately (hgetall is simpler than hmget)
-    const titleMap: Record<string, string> = {};
-    if (topSongIds.length > 0) {
-      try {
+    // Top songs — fetched separately to avoid zrange+withScores pipeline quirks
+    let topSongs: SongStat[] = [];
+    try {
+      const rawIds = await redis.zrange("recs:songs:ranking", 0, 9, { rev: true });
+      if (Array.isArray(rawIds) && rawIds.length > 0) {
+        const ids = rawIds as string[];
+        const scorePipe = redis.pipeline();
+        ids.forEach((id) => scorePipe.zscore("recs:songs:ranking", id));
+        const scoreResults = await scorePipe.exec();
         const allTitles = await redis.hgetall("recs:songs:titles") as Record<string, string> | null;
-        if (allTitles) {
-          topSongIds.forEach((id) => {
-            titleMap[id] = allTitles[id] ?? id;
-          });
-        } else {
-          topSongIds.forEach((id) => { titleMap[id] = id; });
-        }
-      } catch {
-        topSongIds.forEach((id) => { titleMap[id] = id; });
+        topSongs = ids.map((id, i) => ({
+          videoId: id,
+          title: allTitles?.[id] ?? id,
+          count: Number(scoreResults[i] ?? 0),
+        }));
       }
+    } catch {
+      // topSongs stays empty — not critical
     }
-
-    const topSongs: SongStat[] = topSongIds.map((id) => ({
-      videoId: id,
-      title: titleMap[id] ?? id,
-      count: topSongScores[id] ?? 0,
-    }));
 
     // Parse recent
     const recent: RecentEntry[] = recentRaw.map((s) => {
