@@ -479,17 +479,49 @@ function LoadingDots() {
 }
 
 function YouTubeEmbed({ videoId }: { videoId: string }) {
+  const [blocked, setBlocked] = useState(false);
+  const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+  if (blocked) {
+    return (
+      <div className="border-t border-white/5 px-4 py-5 flex flex-col items-center gap-3 bg-white/[0.02]">
+        <p className="text-xs text-zinc-500">この動画は埋め込み再生が禁止されています</p>
+        <a
+          href={ytUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm font-semibold transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+          </svg>
+          YouTubeで開く
+        </a>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="relative w-full border-t border-white/5"
-      style={{ paddingBottom: "56.25%" }}
-    >
-      <iframe
-        className="absolute inset-0 w-full h-full"
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
+    <div className="border-t border-white/5">
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+        <iframe
+          className="absolute inset-0 w-full h-full"
+          src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          onError={() => setBlocked(true)}
+        />
+      </div>
+      <div className="flex justify-end px-3 py-1.5">
+        <a
+          href={ytUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+        >
+          YouTubeで開く →
+        </a>
+      </div>
     </div>
   );
 }
