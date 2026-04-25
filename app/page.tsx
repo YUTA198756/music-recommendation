@@ -28,6 +28,8 @@ function formatViews(n: number): string {
   return `${n}`;
 }
 
+const staggerClass = (i: number) => `stagger-${Math.min(i + 1, 10)}`;
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,7 +54,6 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setPlayingId(null);
-
     try {
       const res = await fetch("/api/recommend", {
         method: "POST",
@@ -78,12 +79,14 @@ export default function Home() {
     const trimmed = url.trim();
     if (!trimmed) return;
     setHistory([]);
+    setData(null);
     fetchRecommendations(trimmed);
   }
 
   function exploreFromTrack(track: Track) {
     if (data) setHistory((h) => [...h, data.seed.youtube_url]);
     setUrl(track.youtube_url);
+    setData(null);
     fetchRecommendations(track.youtube_url);
   }
 
@@ -92,6 +95,7 @@ export default function Home() {
     if (!prev) return;
     setHistory((h) => h.slice(0, -1));
     setUrl(prev);
+    setData(null);
     fetchRecommendations(prev);
   }
 
@@ -99,96 +103,142 @@ export default function Home() {
     setPlayingId((id) => (id === videoId ? null : videoId));
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
-      <main className="mx-auto max-w-3xl px-4 py-10 sm:py-16">
-        <header className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            🎵 Music Recommendation
-          </h1>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            YouTube / YouTube Music のリンクを入れると、似てるおすすめ曲を10個返します
-          </p>
-        </header>
+  const pageBg = {
+    background: `
+      radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.10) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(79,70,229,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 85%, rgba(192,132,252,0.06) 0%, transparent 50%),
+      #06060f
+    `,
+  };
 
-        <form onSubmit={handleSubmit} className="mb-6">
+  return (
+    <div className="min-h-screen text-white" style={pageBg}>
+      {/* header */}
+      <header className="sticky top-0 z-20 border-b border-white/5 backdrop-blur-xl" style={{ backgroundColor: 'rgba(6,6,15,0.7)' }}>
+        <div className="mx-auto max-w-3xl px-4 py-4 flex items-center gap-3">
+          <span className="text-2xl">🎵</span>
+          <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">Music Recommendation</span>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
+        {/* hero */}
+        <div className="mb-10 text-center animate-fade-up">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-3">
+            <span className="bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-transparent">Discover Music</span>
+          </h1>
+          <p className="text-zinc-400 text-sm sm:text-base">
+            YouTubeリンクを入力すると、似てる曲を10曲見つけます
+          </p>
+        </div>
+
+        {/* search form */}
+        <form onSubmit={handleSubmit} className="mb-8 animate-fade-up" style={{ animationDelay: "0.1s" }}>
           <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="url"
-              inputMode="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="flex-1 px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required
-            />
+            <div className="relative flex-1">
+              <input
+                type="url"
+                inputMode="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 backdrop-blur-md"
+                required
+              />
+            </div>
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="px-6 py-3.5 rounded-xl text-white font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 hover:shadow-lg hover:shadow-violet-500/30 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none"
             >
-              {loading ? "取得中..." : "おすすめを見る"}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <LoadingDots /> 取得中
+                </span>
+              ) : (
+                "おすすめを見る"
+              )}
             </button>
           </div>
         </form>
 
+        {/* error */}
         {error && (
-          <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 text-sm">
+          <div className="mb-6 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-sm animate-fade-in">
             {error}
           </div>
         )}
 
-        {data && (
+        {/* loading skeleton */}
+        {loading && (
+          <div className="space-y-3 animate-fade-in">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 rounded-xl skeleton" />
+            ))}
+          </div>
+        )}
+
+        {/* results */}
+        {!loading && data && (
           <>
+            {/* back button */}
             {history.length > 0 && (
               <button
                 type="button"
                 onClick={goBack}
-                disabled={loading}
-                className="mb-3 inline-flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+                className="mb-4 inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300 transition-colors animate-fade-in"
               >
-                ← 前の曲に戻る ({history.length})
+                <span className="text-lg">←</span>
+                前の曲に戻る
+                <span className="px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-xs">
+                  {history.length}
+                </span>
               </button>
             )}
 
-            <section className="mb-6 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-              <div className="p-4">
-                <div className="text-xs uppercase tracking-wide text-zinc-500 mb-3">元の曲</div>
-                <TrackRow
-                  track={data.seed}
-                  isPlaying={playingId === data.seed.video_id}
-                  onTogglePlay={() => togglePlay(data.seed.video_id)}
-                />
-              </div>
-              {playingId === data.seed.video_id && (
-                <YouTubeEmbed videoId={data.seed.video_id} />
-              )}
-            </section>
-
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                おすすめ {sortedRecs.length} 曲
-              </h2>
-              <div className="inline-flex rounded-lg border border-zinc-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-                <FilterButton active={sortMode === "similarity"} onClick={() => setSortMode("similarity")}>
-                  類似度順
-                </FilterButton>
-                <FilterButton active={sortMode === "popularity"} onClick={() => setSortMode("popularity")}>
-                  人気度順
-                </FilterButton>
+            {/* seed card */}
+            <div className="mb-6 animate-fade-up">
+              <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 ml-1">Now Playing</p>
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(139,92,246,0.15)]">
+                <div className="p-4">
+                  <TrackRow
+                    track={data.seed}
+                    isPlaying={playingId === data.seed.video_id}
+                    onTogglePlay={() => togglePlay(data.seed.video_id)}
+                    large
+                  />
+                </div>
+                {playingId === data.seed.video_id && <YouTubeEmbed videoId={data.seed.video_id} />}
               </div>
             </div>
 
+            {/* sort toggle + count */}
+            <div className="flex items-center justify-between mb-4 animate-fade-in">
+              <p className="text-sm text-zinc-400">
+                <span className="text-white font-semibold">{sortedRecs.length}</span> 曲のおすすめ
+              </p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-1 flex gap-1">
+                <SortButton active={sortMode === "similarity"} onClick={() => setSortMode("similarity")}>
+                  類似度順
+                </SortButton>
+                <SortButton active={sortMode === "popularity"} onClick={() => setSortMode("popularity")}>
+                  人気度順
+                </SortButton>
+              </div>
+            </div>
+
+            {/* rec list */}
             <ul className="space-y-2">
               {sortedRecs.map((t, i) => (
                 <li
                   key={t.video_id}
-                  className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 dark:hover:border-indigo-600 transition overflow-hidden"
+                  className={`bg-white/[0.04] border border-white/[0.07] hover:border-violet-500/40 hover:bg-white/[0.07] hover:shadow-[0_0_20px_rgba(139,92,246,0.1)] rounded-2xl overflow-hidden transition-all duration-300 animate-fade-up ${staggerClass(i)}`}
                 >
                   <div className="p-3 flex items-center gap-3">
-                    <div className="w-7 text-center text-sm font-semibold text-zinc-400 shrink-0">
+                    <span className="w-6 text-center text-xs font-bold text-zinc-600 shrink-0">
                       {i + 1}
-                    </div>
+                    </span>
                     <TrackRow
                       track={t}
                       showMeta
@@ -199,11 +249,10 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => exploreFromTrack(t)}
-                      disabled={loading}
                       title="この曲から更に掘る"
-                      className="shrink-0 px-2 sm:px-3 py-2 rounded-lg text-sm bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 disabled:opacity-50 transition"
+                      className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition-all duration-200 text-sm"
                     >
-                      🔍<span className="hidden sm:inline ml-1">掘る</span>
+                      🔍
                     </button>
                   </div>
                   {playingId === t.video_id && <YouTubeEmbed videoId={t.video_id} />}
@@ -217,9 +266,23 @@ export default function Home() {
   );
 }
 
+function LoadingDots() {
+  return (
+    <span className="flex gap-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-1.5 h-1.5 rounded-full bg-white/70 animate-bounce"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function YouTubeEmbed({ videoId }: { videoId: string }) {
   return (
-    <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+    <div className="relative w-full border-t border-white/5" style={{ paddingBottom: "56.25%" }}>
       <iframe
         className="absolute inset-0 w-full h-full"
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
@@ -236,56 +299,66 @@ function TrackRow({
   sortMode,
   isPlaying,
   onTogglePlay,
+  large = false,
 }: {
   track: Track;
   showMeta?: boolean;
   sortMode?: SortMode;
   isPlaying: boolean;
   onTogglePlay: () => void;
+  large?: boolean;
 }) {
+  const thumbSize = large ? "w-20 h-20" : "w-14 h-14";
+
   return (
     <div className="flex items-center gap-3 flex-1 min-w-0">
+      {/* thumbnail / play toggle */}
       <button
         type="button"
         onClick={onTogglePlay}
-        className="relative shrink-0 w-16 h-16 rounded-md overflow-hidden bg-zinc-200 dark:bg-zinc-800 group/thumb"
+        className={`relative shrink-0 ${thumbSize} rounded-xl overflow-hidden bg-white/5 group/thumb`}
         title={isPlaying ? "閉じる" : "プレビュー再生"}
       >
         {track.thumbnail && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={track.thumbnail} alt="" className="w-full h-full object-cover" />
         )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition">
-          <span className="text-white text-xl">{isPlaying ? "■" : "▶"}</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-200">
+          <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <span className="text-white text-sm">{isPlaying ? "■" : "▶"}</span>
+          </div>
         </div>
         {isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <span className="text-white text-xl">■</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-violet-900/60">
+            <div className="w-8 h-8 rounded-full bg-violet-500/40 flex items-center justify-center">
+              <span className="text-white text-sm">■</span>
+            </div>
           </div>
         )}
       </button>
 
+      {/* info */}
       <div className="flex-1 min-w-0">
         <a
           href={track.youtube_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="block font-medium text-zinc-900 dark:text-zinc-50 truncate hover:text-indigo-600 dark:hover:text-indigo-400"
+          className={`block font-semibold truncate hover:text-violet-300 transition-colors ${large ? "text-base" : "text-sm"}`}
         >
           {track.title}
         </a>
-        <div className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
+        <p className="text-xs text-zinc-400 truncate mt-0.5">
           {track.artists.join(", ")}
           {track.album ? ` · ${track.album}` : ""}
-        </div>
+        </p>
         {showMeta && (
-          <div className="mt-1 flex gap-3 text-xs text-zinc-500">
+          <div className="flex gap-3 mt-1 text-xs text-zinc-600">
             {track.length && <span>{track.length}</span>}
-            <span className={sortMode === "popularity" ? "font-semibold text-indigo-600 dark:text-indigo-400" : ""}>
-              👁 {formatViews(track.view_count)}
+            <span className={sortMode === "popularity" ? "text-violet-400 font-semibold" : ""}>
+              {formatViews(track.view_count)} views
             </span>
-            <span className={sortMode === "similarity" ? "font-semibold text-indigo-600 dark:text-indigo-400" : ""}>
-              類似度 #{track.similarity_rank}
+            <span className={sortMode === "similarity" ? "text-violet-400 font-semibold" : ""}>
+              #{track.similarity_rank}
             </span>
           </div>
         )}
@@ -294,7 +367,7 @@ function TrackRow({
   );
 }
 
-function FilterButton({
+function SortButton({
   active,
   onClick,
   children,
@@ -307,10 +380,10 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
         active
-          ? "bg-indigo-600 text-white"
-          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+          ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
+          : "text-zinc-400 hover:text-white"
       }`}
     >
       {children}
