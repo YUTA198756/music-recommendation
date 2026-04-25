@@ -138,11 +138,10 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <input
-                type="url"
-                inputMode="url"
+                type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="曲名・アーティスト名 または YouTubeリンク"
                 className="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all duration-300 backdrop-blur-md"
                 required
               />

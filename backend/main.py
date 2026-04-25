@@ -106,11 +106,26 @@ def health():
     return {"ok": True}
 
 
+def search_video_id(query: str) -> Optional[str]:
+    try:
+        results = yt.search(query, filter="songs", limit=1)
+        if results:
+            return results[0].get("videoId")
+        results = yt.search(query, limit=1)
+        if results:
+            return results[0].get("videoId")
+    except Exception:
+        pass
+    return None
+
+
 @app.post("/recommend", response_model=RecommendResponse)
 def recommend(req: RecommendRequest):
     video_id = extract_video_id(req.url)
     if not video_id:
-        raise HTTPException(status_code=400, detail="有効なYouTube URLまたはvideo IDを入力してください")
+        video_id = search_video_id(req.url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="曲が見つかりませんでした。別のキーワードやURLをお試しください")
 
     try:
         watch = yt.get_watch_playlist(videoId=video_id, limit=25)
